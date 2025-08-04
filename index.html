@@ -1,88 +1,163 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Realidade Aumentada - Demogorgon</title>
+    <meta charset="utf-8">
+    <title>Stranger Things AR</title>
+    <meta name="description" content="Encontre o Demogorgon no Mundo Invertido">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <!-- A-Frame e AR.js -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
     <style>
-        body { margin: 0; font-family: sans-serif; background-color: #111; color: white; text-align: center; }
-        #loader-container {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #111;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 1000;
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
-        #loading-bar {
-            width: 80%; max-width: 400px; height: 20px;
-            border: 1px solid #fff; border-radius: 10px;
+
+        /* Tela de Carregamento */
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease-out;
+        }
+
+        #loading-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #logo {
+            width: 80%;
+            max-width: 400px;
+            margin-bottom: 30px;
+        }
+
+        /* Barra de Carregamento */
+        #progress-bar-container {
+            width: 70%;
+            max-width: 350px;
+            height: 20px;
+            border: 2px solid #e72626;
+            border-radius: 10px;
             overflow: hidden;
         }
-        #progress {
-            width: 0%; height: 100%;
-            background-color: #0f0;
-            transition: width 0.3s;
+
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #e72626;
+            transition: width 0.2s ease-in-out;
         }
+
+        /* Botão de Entrada */
         #enter-button {
-            display: none; padding: 15px 30px;
-            font-size: 1.2em; cursor: pointer;
-            background-color: #0f0; color: #111;
-            border: none; border-radius: 10px;
-        }
-        model-viewer {
-            width: 100vw; height: 100vh;
-            display: none;
+            display: none; /* Começa escondido */
+            margin-top: 40px;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #fff;
+            background-color: #e72626;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
     </style>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 </head>
-<body>
 
-    <div id="loader-container">
-        <p>Carregando experiência de RA...</p>
-        <div id="loading-bar">
-            <div id="progress"></div>
+<body>
+    <!-- Tela de Carregamento -->
+    <div id="loading-screen">
+        <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
         </div>
+        <button id="enter-button">Entrar no Mundo Invertido</button>
     </div>
 
-    <button id="enter-button">Entrar na Realidade Aumentada</button>
+    <!-- Cena de Realidade Aumentada -->
+    <a-scene
+        vr-mode-ui="enabled: false;"
+        arjs="sourceType: webcam; trackingMethod: best; debugUIEnabled: false;"
+        renderer="logarithmicDepthBuffer: true;"
+        embedded
+        style="visibility: hidden;"
+    >
+        <!-- Assets a serem pré-carregados -->
+        <a-assets>
+            <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
+        </a-assets>
 
-    <model-viewer
-        id="ar-viewer"
-        src="assets/models/demogorgon_animated.glb"
-        ar
-        ar-modes="webxr scene-viewer quick-look"
-        camera-controls
-        ar-placement="floor"
-        shadow-intensity="1"
-        autoplay
-        alt="Um modelo 3D animado de um Demogorgon">
-    </model-viewer>
+        <!-- Câmera AR -->
+        <a-camera gps-new-camera="gpsMinDistance: 5"></a-camera>
+
+        <!-- Entidade do Demogorgon -->
+        <a-entity
+            gltf-model="#demogorgon-model"
+            position="0 -1.5 -5"
+            scale="0.8 0.8 0.8"
+            animation-mixer="clip: *"
+        ></a-entity>
+    </a-scene>
 
     <script>
-        const loaderContainer = document.getElementById('loader-container');
-        const progressBar = document.getElementById('progress');
-        const enterButton = document.getElementById('enter-button');
-        const arViewer = document.getElementById('ar-viewer');
+        document.addEventListener('DOMContentLoaded', () => {
+            const scene = document.querySelector('a-scene');
+            const loadingScreen = document.getElementById('loading-screen');
+            const progressBar = document.getElementById('progress-bar');
+            const enterButton = document.getElementById('enter-button');
 
-        // Simula o pré-carregamento de assets
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += 10;
-            progressBar.style.width = progress + '%';
-            if (progress >= 100) {
-                clearInterval(interval);
-                loaderContainer.style.display = 'none';
-                enterButton.style.display = 'block';
-            }
-        }, 200);
+            // Simula o carregamento dos assets da cena
+            scene.addEventListener('loaded', () => {
+                // Atualiza a barra de progresso para 100%
+                progressBar.style.width = '100%';
 
-        enterButton.addEventListener('click', () => {
-            // Solicita permissões e ativa o modo AR ao clicar
-            arViewer.style.display = 'block';
-            arViewer.activateAR();
-            enterButton.style.display = 'none';
+                // Aguarda um pouco para o usuário ver a barra cheia
+                setTimeout(() => {
+                    document.getElementById('progress-bar-container').style.display = 'none';
+                    enterButton.style.display = 'block';
+                }, 500);
+            });
+            
+            // Lógica para o botão de entrada
+            enterButton.addEventListener('click', () => {
+                // Esconde a tela de carregamento
+                loadingScreen.classList.add('fade-out');
+                
+                // Torna a cena AR visível e inicia
+                const arScene = document.querySelector('a-scene');
+                arScene.style.visibility = 'visible';
+
+                // O clique neste botão é a "interação do usuário" que permite
+                // ao navegador solicitar acesso à câmera sem pop-ups adicionais.
+            });
+
+            // Simulação de progresso para a barra (opcional, mas melhora a experiência)
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 10;
+                if (progress <= 90) { // Não vai a 100% aqui, o evento 'loaded' fará isso
+                    progressBar.style.width = progress + '%';
+                } else {
+                    clearInterval(interval);
+                }
+            }, 200);
         });
     </script>
-
 </body>
 </html>

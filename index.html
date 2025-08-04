@@ -17,7 +17,16 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* Telas de UI (Carregamento, Jogo, Vitória) */
+        /* O vídeo que alimenta o AR.js fica oculto */
+        #ar-video {
+            position: fixed;
+            top: 0; left: 0;
+            width: 1px; height: 1px;
+            opacity: 0;
+            z-index: -1;
+        }
+
+        /* Telas de UI */
         .ui-screen {
             position: absolute;
             top: 0;
@@ -45,33 +54,15 @@
             margin-bottom: 30px;
         }
 
-        /* Barra de Carregamento */
-        #progress-bar-container {
-            width: 70%;
-            max-width: 350px;
-            height: 20px;
-            border: 2px solid #e72626;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 15px; /* Espaço para o texto abaixo */
-        }
-
-        #progress-bar {
-            width: 0%;
-            height: 100%;
-            background-color: #e72626;
-            transition: width 0.4s ease-in-out;
-        }
-
         #loading-info {
-            font-size: 0.9em;
+            font-size: 1em;
             color: #ccc;
-            height: 20px; /* Altura fixa para evitar pulos de layout */
+            height: 20px;
+            margin-top: 20px;
         }
 
-        /* Botão de Entrada */
         #enter-button {
-            display: block; /* Começa visível */
+            display: block;
             margin-top: 40px;
             padding: 15px 30px;
             font-size: 1.2em;
@@ -96,7 +87,7 @@
             z-index: 500;
             color: #fff;
             font-size: 1.1em;
-            display: none; /* Começa escondido */
+            display: none;
         }
 
         #game-ui h2 {
@@ -132,11 +123,14 @@
 </head>
 
 <body>
+    <!-- Elemento de vídeo para a stream da câmera -->
+    <video id="ar-video" muted autoplay playsinline></video>
+
     <!-- Tela de Carregamento -->
     <div id="loading-screen" class="ui-screen">
         <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
-        <p id="loading-info">Encontre os objetos perdidos no Mundo Invertido!</p>
         <button id="enter-button">Iniciar Caçada</button>
+        <p id="loading-info"></p>
     </div>
 
     <!-- UI do Jogo -->
@@ -166,23 +160,22 @@
             const gameUi = document.getElementById('game-ui');
             const victoryScreen = document.getElementById('victory-screen');
             const collectiblesList = document.getElementById('collectibles-list');
+            const video = document.getElementById('ar-video');
 
-            const collectibles = {
-                demogorgon: false,
-                will: false,
-                bike: false
-            };
-            const totalCollectibles = Object.keys(collectibles).length;
+            const collectibles = { demogorgon: false, will: false, bike: false };
             let foundCollectibles = 0;
 
-            // Lógica para o botão de entrada
-            enterButton.addEventListener('click', async () => {
+            enterButton.addEventListener('click', () => {
+                initializeAr();
+            });
+
+            async function initializeAr() {
                 loadingInfo.innerText = "Solicitando acesso à câmera...";
                 enterButton.style.display = 'none';
 
                 try {
-                    // 1. Encontrar a câmera correta
-                    await navigator.mediaDevices.getUserMedia({ video: true }); // Pede permissão genérica primeiro
+                    // 1. Encontrar o deviceId da câmera ideal
+                    await navigator.mediaDevices.getUserMedia({ video: true }); // Pede permissão
                     const devices = await navigator.mediaDevices.enumerateDevices();
                     const videoDevices = devices.filter(device => device.kind === 'videoinput');
                     
@@ -196,33 +189,47 @@
                     }
                     if (!bestDevice) bestDevice = videoDevices.find(device => device.label.toLowerCase().includes('back'));
                     if (!bestDevice && videoDevices.length > 0) bestDevice = videoDevices[0];
-                    if (!bestDevice) throw new Error("Nenhuma câmera encontrada.");
+                    if (!bestDevice) throw new Error("Nenhuma câmera traseira encontrada.");
 
-                    loadingInfo.innerText = "Iniciando a cena AR...";
+                    // 2. Obter a stream da câmera manualmente
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { 
+                            deviceId: { exact: bestDevice.deviceId },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    });
+                    video.srcObject = stream;
 
-                    // 2. Criar a cena AR dinamicamente
-                    createArScene(bestDevice.deviceId);
-
-                    // 3. Esconder a UI de carregamento e mostrar a UI do jogo
-                    loadingScreen.classList.add('hidden');
-                    gameUi.style.display = 'block';
+                    // 3. Esperar o vídeo começar a tocar
+                    video.addEventListener('loadedmetadata', () => {
+                        video.play();
+                        loadingInfo.innerText = "Iniciando a cena AR...";
+                        
+                        // 4. Criar a cena AR somente agora
+                        createArScene();
+                        
+                        loadingScreen.classList.add('hidden');
+                        gameUi.style.display = 'block';
+                    });
 
                 } catch (err) {
                     console.error("Erro ao iniciar AR: ", err);
-                    loadingInfo.innerText = "Falha ao iniciar a câmera. Verifique as permissões e recarregue a página.";
+                    loadingInfo.innerText = `Falha ao iniciar a câmera: ${err.name}. Verifique as permissões.`;
+                    enterButton.style.display = 'block';
                 }
-            });
+            }
 
-            function createArScene(deviceId) {
+            function createArScene() {
                 const arContainer = document.getElementById('ar-container');
                 const sceneEl = document.createElement('a-scene');
                 
                 sceneEl.setAttribute('vr-mode-ui', 'enabled: false;');
                 sceneEl.setAttribute('renderer', 'logarithmicDepthBuffer: true; colorManagement: true;');
                 sceneEl.setAttribute('embedded', true);
-                sceneEl.setAttribute('arjs', `sourceType: webcam; sourceWidth: 1280; sourceHeight: 720; trackingMethod: best; debugUIEnabled: false; deviceId: ${deviceId}`);
+                // A fonte agora é o nosso elemento de vídeo
+                sceneEl.setAttribute('arjs', 'sourceType: video; sourceElement: #ar-video; trackingMethod: best; debugUIEnabled: false;');
 
-                // Assets
                 const assetsEl = document.createElement('a-assets');
                 assetsEl.innerHTML = `
                     <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
@@ -231,54 +238,45 @@
                 `;
                 sceneEl.appendChild(assetsEl);
 
-                // Câmera
                 const cameraEl = document.createElement('a-camera');
                 cameraEl.setAttribute('fov', 60);
                 cameraEl.innerHTML = '<a-cursor></a-cursor>';
                 sceneEl.appendChild(cameraEl);
 
-                // Entidades
-                const demogorgonEl = document.createElement('a-entity');
-                demogorgonEl.id = 'demogorgon';
-                demogorgonEl.classList.add('collectible');
-                demogorgonEl.setAttribute('gltf-model', '#demogorgon-model');
-                demogorgonEl.setAttribute('position', '0 -1 -5');
-                demogorgonEl.setAttribute('scale', '0.2 0.2 0.2');
-                demogorgonEl.setAttribute('animation-mixer', 'loop: repeat');
-                sceneEl.appendChild(demogorgonEl);
+                // Adiciona as entidades...
+                addCollectiblesToScene(sceneEl);
 
-                const willEl = document.createElement('a-entity');
-                willEl.id = 'will';
-                willEl.classList.add('collectible');
-                willEl.setAttribute('gltf-model', '#will-model');
-                willEl.setAttribute('position', '4 0 -8');
-                willEl.setAttribute('scale', '0.4 0.4 0.4');
-                sceneEl.appendChild(willEl);
-
-                const bikeEl = document.createElement('a-entity');
-                bikeEl.id = 'bike';
-                bikeEl.classList.add('collectible');
-                bikeEl.setAttribute('gltf-model', '#bike-model');
-                bikeEl.setAttribute('position', '-4 0 -10');
-                bikeEl.setAttribute('scale', '0.5 0.5 0.5');
-                bikeEl.setAttribute('rotation', '0 45 0');
-                sceneEl.appendChild(bikeEl);
-
-                // Adiciona a cena ao DOM e inicia o jogo
                 arContainer.appendChild(sceneEl);
                 initGame();
             }
 
+            function addCollectiblesToScene(sceneEl) {
+                const entities = [
+                    { id: 'demogorgon', model: '#demogorgon-model', pos: '0 -1 -5', scale: '0.2 0.2 0.2', anim: 'loop: repeat' },
+                    { id: 'will', model: '#will-model', pos: '4 0 -8', scale: '0.4 0.4 0.4' },
+                    { id: 'bike', model: '#bike-model', pos: '-4 0 -10', scale: '0.5 0.5 0.5', rot: '0 45 0' }
+                ];
+
+                entities.forEach(data => {
+                    const el = document.createElement('a-entity');
+                    el.id = data.id;
+                    el.classList.add('collectible');
+                    el.setAttribute('gltf-model', data.model);
+                    el.setAttribute('position', data.pos);
+                    el.setAttribute('scale', data.scale);
+                    if (data.rot) el.setAttribute('rotation', data.rot);
+                    if (data.anim) el.setAttribute('animation-mixer', data.anim);
+                    sceneEl.appendChild(el);
+                });
+            }
+
             function initGame() {
-                // A cena pode demorar um pouco para inicializar os nós
                 setTimeout(() => {
                     const collectibleEntities = document.querySelectorAll('.collectible');
                     collectibleEntities.forEach(entity => {
-                        entity.addEventListener('click', () => {
-                            collectItem(entity.id);
-                        });
+                        entity.addEventListener('click', () => collectItem(entity.id));
                     });
-                }, 1000); // Espera 1s para garantir que a cena está pronta
+                }, 1500); // Aumenta o tempo para garantir que tudo esteja pronto
             }
 
             function collectItem(id) {

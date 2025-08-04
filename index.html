@@ -10,32 +10,32 @@
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 
     <style>
-        body {
+        /* Garante que o layout ocupe toda a tela desde o início */
+        html, body {
             margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* A cena AR deve ocupar toda a tela */
-        a-scene {
-            height: 100vh;
-            width: 100vw;
-        }
-
-        /* O overlay contém toda a UI, permitindo que cliques passem para a cena AR */
+        /* O overlay contém toda a UI */
         #overlay {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
+            top: 0; left: 0; right: 0; bottom: 0;
             z-index: 10;
-            pointer-events: none; /* Deixa os cliques passarem por padrão */
+            pointer-events: none; /* Deixa os cliques passarem para a cena por padrão */
         }
 
         /* Elementos da UI devem ser clicáveis */
-        .ui-screen, #game-ui {
+        .ui-element {
             pointer-events: auto;
         }
 
         .ui-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
             background-color: #000;
             color: #fff;
             display: flex;
@@ -59,7 +59,7 @@
         #loading-info {
             font-size: 1em;
             color: #ccc;
-            height: 40px; /* Mais espaço para texto */
+            height: 40px;
             margin-top: 20px;
             text-align: center;
             padding: 0 15px;
@@ -102,30 +102,7 @@
 </head>
 
 <body>
-    <!-- O overlay contém toda a UI para funcionar com WebXR -->
-    <div id="overlay">
-        <div id="loading-screen" class="ui-screen">
-            <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
-            <button id="enter-button">Entrar no Mundo Invertido</button>
-            <p id="loading-info"></p>
-        </div>
-
-        <div id="game-ui">
-            <h2>Itens para Encontrar:</h2>
-            <ul id="collectibles-list">
-                <li data-item="demogorgon">Demogorgon</li>
-                <li data-item="will">Will Byers</li>
-                <li data-item="bike">Bicicleta</li>
-            </ul>
-        </div>
-
-        <div id="victory-screen" class="ui-screen hidden">
-            <h1>Você Conseguiu!</h1>
-            <p>Todos os itens foram encontrados.</p>
-        </div>
-    </div>
-
-    <!-- Cena A-Frame configurada para WebXR Hit-Testing -->
+    <!-- A-Frame Scene -->
     <a-scene
         id="ar-scene"
         webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
@@ -141,18 +118,35 @@
 
         <a-camera fov="80"></a-camera>
 
-        <!-- Retícula para mostrar onde o objeto será colocado -->
-        <a-entity id="reticle"
-            visible="false"
-            geometry="primitive: ring; radius-inner: 0.05; radius-outer: 0.1;"
-            material="color: #e72626; shader: flat;">
-        </a-entity>
+        <a-entity id="reticle" visible="false" geometry="primitive: ring; radius-inner: 0.05; radius-outer: 0.1;" material="color: #e72626; shader: flat;"></a-entity>
 
-        <!-- Entidades colecionáveis, inicialmente invisíveis e na origem -->
         <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" visible="false" animation-mixer="loop: repeat"></a-entity>
         <a-entity id="will" class="collectible" gltf-model="#will-model" visible="false"></a-entity>
         <a-entity id="bike" class="collectible" gltf-model="#bike-model" visible="false"></a-entity>
     </a-scene>
+
+    <!-- UI Overlay -->
+    <div id="overlay">
+        <div id="loading-screen" class="ui-screen ui-element">
+            <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
+            <button id="enter-button" class="ui-element">Entrar no Mundo Invertido</button>
+            <p id="loading-info"></p>
+        </div>
+
+        <div id="game-ui" class="ui-element">
+            <h2>Itens para Encontrar:</h2>
+            <ul id="collectibles-list">
+                <li data-item="demogorgon">Demogorgon</li>
+                <li data-item="will">Will Byers</li>
+                <li data-item="bike">Bicicleta</li>
+            </ul>
+        </div>
+
+        <div id="victory-screen" class="ui-screen ui-element hidden">
+            <h1>Você Conseguiu!</h1>
+            <p>Todos os itens foram encontrados.</p>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -168,10 +162,15 @@
             let foundCollectibles = 0;
             const objectsToPlace = ['demogorgon', 'will', 'bike'];
 
-            // O botão de "Entrar" agora apenas inicia a sessão AR do navegador
-            enterButton.addEventListener('click', () => {
-                sceneEl.requestSession(); // Inicia a sessão WebXR
-                loadingInfo.innerText = "Iniciando AR... Por favor, aceite o pedido do navegador.";
+            enterButton.addEventListener('click', async () => {
+                try {
+                    // Usa o método correto e oficial do A-Frame para entrar em AR
+                    await sceneEl.enterAR();
+                    loadingInfo.innerText = "Iniciando AR...";
+                } catch (e) {
+                    loadingInfo.innerText = "AR não suportado. Use um navegador e celular compatíveis.";
+                    console.error(e);
+                }
             });
 
             sceneEl.addEventListener('enter-vr', () => {
@@ -181,27 +180,27 @@
             });
 
             function initGame() {
-                loadingInfo.innerText = "Mova o celular para encontrar uma superfície (chão, mesa)...";
-                gameUi.appendChild(loadingInfo); // Move a info para a UI do jogo
+                const instructionText = document.createElement('p');
+                instructionText.id = 'instruction-text';
+                instructionText.innerText = "Mova o celular para encontrar uma superfície (chão, mesa)...";
+                gameUi.appendChild(instructionText);
 
                 sceneEl.addEventListener('ar-hit-test-achieved', () => {
                     reticle.setAttribute('visible', true);
-                    loadingInfo.innerText = "Toque no anel para colocar um objeto.";
+                    instructionText.innerText = "Toque no anel para colocar um objeto.";
                 });
 
                 sceneEl.addEventListener('ar-hit-test-lost', () => {
                     reticle.setAttribute('visible', false);
-                    loadingInfo.innerText = "Mova o celular para encontrar uma superfície...";
+                    instructionText.innerText = "Mova o celular para encontrar uma superfície...";
                 });
 
-                // Coloca um objeto ao tocar na tela
                 sceneEl.addEventListener('select', () => {
                     if (reticle.getAttribute('visible') && objectsToPlace.length > 0) {
                         const objectId = objectsToPlace.shift();
                         const objectEntity = document.getElementById(objectId);
 
-                        const position = reticle.getAttribute('position');
-                        objectEntity.setAttribute('position', position);
+                        reticle.object3D.getWorldPosition(objectEntity.object3D.position);
 
                         const scale = (objectId === 'demogorgon') ? '0.2 0.2 0.2' : (objectId === 'will') ? '0.4 0.4 0.4' : '0.5 0.5 0.5';
                         objectEntity.setAttribute('scale', scale);
@@ -210,10 +209,10 @@
                         objectEntity.addEventListener('click', () => collectItem(objectId));
 
                         if (objectsToPlace.length > 0) {
-                            loadingInfo.innerText = `Ótimo! Agora coloque o próximo.`;
+                            instructionText.innerText = `Ótimo! Agora coloque o próximo.`;
                         } else {
-                            loadingInfo.innerText = "Todos os itens foram colocados! Agora, ande até eles e colete-os.";
-                            setTimeout(() => { loadingInfo.style.display = 'none'; }, 4000);
+                            instructionText.innerText = "Todos os itens foram colocados! Agora, ande até eles e colete-os.";
+                            setTimeout(() => { instructionText.style.display = 'none'; }, 4000);
                         }
                     }
                 });

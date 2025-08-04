@@ -17,20 +17,15 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* O vídeo que alimenta o AR.js fica fora da tela */
         #ar-video {
             position: fixed;
             top: -9999px; left: -9999px;
             z-index: -1;
         }
 
-        /* Telas de UI */
         .ui-screen {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             background-color: #000;
             color: #fff;
             display: flex;
@@ -52,16 +47,33 @@
             margin-bottom: 30px;
         }
 
+        #progress-bar-container {
+            width: 70%;
+            max-width: 350px;
+            height: 20px;
+            border: 2px solid #e72626;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #e72626;
+            transition: width 0.4s ease-in-out;
+        }
+
         #loading-info {
             font-size: 1em;
             color: #ccc;
             height: 20px;
-            margin-top: 20px;
+            margin-top: 10px;
             text-align: center;
         }
 
         #enter-button {
-            display: block;
+            display: none; /* Começa escondido */
             margin-top: 40px;
             padding: 15px 30px;
             font-size: 1.2em;
@@ -75,11 +87,9 @@
             letter-spacing: 2px;
         }
 
-        /* UI do Jogo */
         #game-ui {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 20px; left: 20px;
             background-color: rgba(0, 0, 0, 0.7);
             padding: 15px;
             border-radius: 10px;
@@ -89,50 +99,28 @@
             display: none;
         }
 
-        #game-ui h2 {
-            margin: 0 0 10px 0;
-            padding-bottom: 5px;
-            border-bottom: 2px solid #e72626;
-            font-size: 1.2em;
-        }
+        #game-ui h2 { margin: 0 0 10px 0; padding-bottom: 5px; border-bottom: 2px solid #e72626; font-size: 1.2em; }
+        #collectibles-list li { list-style: none; margin-bottom: 5px; transition: all 0.3s ease; }
+        #collectibles-list li.found { text-decoration: line-through; color: #888; }
 
-        #collectibles-list li {
-            list-style: none;
-            margin-bottom: 5px;
-            transition: all 0.3s ease;
-        }
-        
-        #collectibles-list li.found {
-            text-decoration: line-through;
-            color: #888;
-        }
-
-        /* Tela de Vitória */
-        #victory-screen h1 {
-            font-size: 2.5em;
-            color: #e72626;
-            text-transform: uppercase;
-            margin-bottom: 20px;
-        }
-        #victory-screen p {
-            font-size: 1.2em;
-        }
+        #victory-screen h1 { font-size: 2.5em; color: #e72626; text-transform: uppercase; margin-bottom: 20px; }
+        #victory-screen p { font-size: 1.2em; }
 
     </style>
 </head>
 
 <body>
-    <!-- Elemento de vídeo para a stream da câmera -->
     <video id="ar-video" muted autoplay playsinline></video>
 
-    <!-- Tela de Carregamento -->
     <div id="loading-screen" class="ui-screen">
         <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+        <p id="loading-info">Carregando assets...</p>
         <button id="enter-button">Iniciar Caçada</button>
-        <p id="loading-info"></p>
     </div>
 
-    <!-- UI do Jogo -->
     <div id="game-ui">
         <h2>Itens para Encontrar:</h2>
         <ul id="collectibles-list">
@@ -142,13 +130,11 @@
         </ul>
     </div>
 
-    <!-- Tela de Vitória -->
     <div id="victory-screen" class="ui-screen hidden">
         <h1>Você Conseguiu!</h1>
         <p>Todos os itens foram encontrados.</p>
     </div>
 
-    <!-- Cena AR (inicialmente vazia e invisível) -->
     <a-scene
         id="ar-scene"
         vr-mode-ui="enabled: false;"
@@ -156,21 +142,17 @@
         embedded
         style="visibility: hidden;"
     >
-        <!-- Assets -->
         <a-assets>
             <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
             <a-asset-item id="will-model" src="assets/models/will_byers.glb"></a-asset-item>
             <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
         </a-assets>
 
-        <!-- Câmera será configurada via JS -->
         <a-camera fov="80"></a-camera>
 
-        <!-- Entidades Colecionáveis -->
         <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" position="0 -1 -5" scale="0.2 0.2 0.2" animation-mixer="loop: repeat"></a-entity>
         <a-entity id="will" class="collectible" gltf-model="#will-model" position="2.5 0 -8" scale="0.4 0.4 0.4"></a-entity>
         <a-entity id="bike" class="collectible" gltf-model="#bike-model" position="-2.5 0 -7" scale="0.5 0.5 0.5" rotation="0 45 0"></a-entity>
-
     </a-scene>
 
     <script>
@@ -179,6 +161,7 @@
             const loadingScreen = document.getElementById('loading-screen');
             const enterButton = document.getElementById('enter-button');
             const loadingInfo = document.getElementById('loading-info');
+            const progressBar = document.getElementById('progress-bar');
             const gameUi = document.getElementById('game-ui');
             const victoryScreen = document.getElementById('victory-screen');
             const video = document.getElementById('ar-video');
@@ -186,49 +169,67 @@
             const collectibles = { demogorgon: false, will: false, bike: false };
             let foundCollectibles = 0;
 
+            // 1. Simular carregamento de assets
+            function simulateLoading() {
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 25;
+                    progressBar.style.width = progress + '%';
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        loadingInfo.innerText = "Pronto para iniciar!";
+                        document.getElementById('progress-bar-container').style.display = 'none';
+                        enterButton.style.display = 'block';
+                    }
+                }, 400);
+            }
+            simulateLoading();
+
+            // 2. Iniciar AR ao clicar no botão
             enterButton.addEventListener('click', () => {
                 startAr();
             });
 
             async function startAr() {
                 loadingInfo.innerText = "Solicitando acesso à câmera...";
+                loadingInfo.style.display = 'block';
                 enterButton.style.display = 'none';
 
                 try {
-                    // 1. Obter a stream da câmera com as configurações mais genéricas
+                    // Obter stream da câmera
                     const stream = await navigator.mediaDevices.getUserMedia({ 
                         video: { facingMode: 'environment' }
                     });
                     video.srcObject = stream;
+                    
+                    // Aguardar o vídeo começar a tocar (método robusto)
+                    await video.play();
 
-                    // 2. Esperar o vídeo começar a tocar
-                    video.addEventListener('playing', () => {
-                        loadingInfo.innerText = "Iniciando AR...";
+                    loadingInfo.innerText = "Iniciando AR...";
 
-                        // 3. Iniciar o AR.js com o vídeo como fonte e em modo retrato
-                        sceneEl.setAttribute('arjs', {
-                            sourceType: 'video',
-                            sourceElement: '#ar-video',
-                            displayMode: 'portrait',
-                            trackingMethod: 'best',
-                            debugUIEnabled: false
-                        });
-
-                        // Adiciona o cursor à câmera
-                        const camera = sceneEl.querySelector('a-camera');
-                        const cursor = document.createElement('a-cursor');
-                        camera.appendChild(cursor);
-
-                        // 4. Mostrar a cena e a UI do jogo
-                        loadingScreen.classList.add('hidden');
-                        sceneEl.style.visibility = 'visible';
-                        gameUi.style.display = 'block';
-                        initGame();
+                    // Iniciar AR.js com o vídeo como fonte
+                    sceneEl.setAttribute('arjs', {
+                        sourceType: 'video',
+                        sourceElement: '#ar-video',
+                        displayMode: 'portrait',
+                        trackingMethod: 'best',
+                        debugUIEnabled: false
                     });
+
+                    // Adicionar cursor à câmera
+                    const camera = sceneEl.querySelector('a-camera');
+                    const cursor = document.createElement('a-cursor');
+                    camera.appendChild(cursor);
+
+                    // Mostrar a cena e a UI do jogo
+                    loadingScreen.classList.add('hidden');
+                    sceneEl.style.visibility = 'visible';
+                    gameUi.style.display = 'block';
+                    initGame();
 
                 } catch (err) {
                     console.error("Erro ao iniciar a câmera: ", err);
-                    loadingInfo.innerText = `Erro: ${err.name}. Verifique as permissões da câmera e recarregue.`;
+                    loadingInfo.innerText = `Erro: ${err.name}. Verifique as permissões e recarregue.`;
                     enterButton.style.display = 'block';
                 }
             }
@@ -246,9 +247,9 @@
                 foundCollectibles++;
                 const entity = document.getElementById(id);
                 if (entity) entity.setAttribute('visible', 'false');
-                const listItem = collectiblesList.querySelector(`li[data-item="${id}"]`);
+                const listItem = document.querySelector(`#collectibles-list li[data-item="${id}"]`);
                 if(listItem) listItem.classList.add('found');
-                if (foundCollectibles >= totalCollectibles) showVictoryScreen();
+                if (foundCollectibles >= Object.keys(collectibles).length) showVictoryScreen();
             }
 
             function showVictoryScreen() {

@@ -53,13 +53,20 @@
             border: 2px solid #e72626;
             border-radius: 10px;
             overflow: hidden;
+            margin-bottom: 15px; /* Espaço para o texto abaixo */
         }
 
         #progress-bar {
             width: 0%;
             height: 100%;
             background-color: #e72626;
-            transition: width 0.2s ease-in-out;
+            transition: width 0.4s ease-in-out;
+        }
+
+        #loading-info {
+            font-size: 0.9em;
+            color: #ccc;
+            height: 20px; /* Altura fixa para evitar pulos de layout */
         }
 
         /* Botão de Entrada */
@@ -131,6 +138,7 @@
         <div id="progress-bar-container">
             <div id="progress-bar"></div>
         </div>
+        <p id="loading-info">Preparando o Mundo Invertido...</p>
         <button id="enter-button">Iniciar Caçada</button>
     </div>
 
@@ -154,8 +162,8 @@
     <a-scene
         id="ar-scene"
         vr-mode-ui="enabled: false;"
-        arjs="sourceType: webcam; trackingMethod: best; debugUIEnabled: false;"
-        renderer="logarithmicDepthBuffer: true;"
+        arjs="sourceType: webcam; sourceWidth: 1280; sourceHeight: 720; trackingMethod: best; debugUIEnabled: false;"
+        renderer="logarithmicDepthBuffer: true; colorManagement: true;"
         embedded
         style="visibility: hidden;"
     >
@@ -167,7 +175,7 @@
         </a-assets>
 
         <!-- Câmera AR com Cursor -->
-        <a-camera gps-new-camera="gpsMinDistance: 5">
+        <a-camera>
             <a-cursor></a-cursor>
         </a-camera>
 
@@ -183,6 +191,7 @@
             const sceneEl = document.getElementById('ar-scene');
             const loadingScreen = document.getElementById('loading-screen');
             const progressBar = document.getElementById('progress-bar');
+            const loadingInfo = document.getElementById('loading-info');
             const enterButton = document.getElementById('enter-button');
             const gameUi = document.getElementById('game-ui');
             const victoryScreen = document.getElementById('victory-screen');
@@ -196,11 +205,35 @@
             const totalCollectibles = Object.keys(collectibles).length;
             let foundCollectibles = 0;
 
-            // Simula o carregamento dos assets da cena
+            // --- Lógica de Carregamento Simulado ---
+            const assetsToLoad = [
+                { name: "demogorgon_animated.glb", progress: 30 },
+                { name: "will_byers.glb", progress: 60 },
+                { name: "bicicleta-will.glb", progress: 90 },
+                { name: "Conectando à câmera...", progress: 100 }
+            ];
+            let currentAssetIndex = 0;
+
+            function simulateLoading() {
+                if (currentAssetIndex < assetsToLoad.length) {
+                    const asset = assetsToLoad[currentAssetIndex];
+                    loadingInfo.innerText = `Carregando: ${asset.name}`;
+                    progressBar.style.width = asset.progress + '%';
+                    currentAssetIndex++;
+                    setTimeout(simulateLoading, 600); // Simula o tempo de carregamento
+                }
+            }
+
+            // Inicia a simulação de carregamento
+            simulateLoading();
+
+            // O evento 'loaded' da cena A-Frame é a confirmação final
             sceneEl.addEventListener('loaded', () => {
+                loadingInfo.innerText = "Tudo pronto!";
                 progressBar.style.width = '100%';
                 setTimeout(() => {
                     document.getElementById('progress-bar-container').style.display = 'none';
+                    loadingInfo.style.display = 'none';
                     enterButton.style.display = 'block';
                 }, 500);
             });
@@ -249,17 +282,6 @@
                 gameUi.style.display = 'none';
                 victoryScreen.classList.remove('hidden');
             }
-
-            // Simulação de progresso para a barra
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += 10;
-                if (progress <= 90) {
-                    progressBar.style.width = progress + '%';
-                } else {
-                    clearInterval(interval);
-                }
-            }, 200);
         });
     </script>
 </body>

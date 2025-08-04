@@ -3,12 +3,11 @@
 <head>
     <meta charset="utf-8">
     <title>Stranger Things AR - Caça aos Objetos</title>
-    <meta name="description" content="Encontre os objetos perdidos no Mundo Invertido">
+    <meta name="description" content="Encontre e posicione os objetos no Mundo Invertido">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <!-- A-Frame e AR.js -->
+    <!-- A-Frame -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
         body {
@@ -17,22 +16,32 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        #ar-video {
+        /* A cena AR deve ocupar toda a tela */
+        a-scene {
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* O overlay contém toda a UI, permitindo que cliques passem para a cena AR */
+        #overlay {
             position: fixed;
-            top: -9999px; left: -9999px;
-            z-index: -1;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Deixa os cliques passarem por padrão */
+        }
+
+        /* Elementos da UI devem ser clicáveis */
+        .ui-screen, #game-ui {
+            pointer-events: auto;
         }
 
         .ui-screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
             background-color: #000;
             color: #fff;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 1000;
             transition: opacity 0.5s ease-out;
         }
 
@@ -47,33 +56,17 @@
             margin-bottom: 30px;
         }
 
-        #progress-bar-container {
-            width: 70%;
-            max-width: 350px;
-            height: 20px;
-            border: 2px solid #e72626;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 15px;
-        }
-
-        #progress-bar {
-            width: 0%;
-            height: 100%;
-            background-color: #e72626;
-            transition: width 0.4s ease-in-out;
-        }
-
         #loading-info {
             font-size: 1em;
             color: #ccc;
-            height: 20px;
-            margin-top: 10px;
+            height: 40px; /* Mais espaço para texto */
+            margin-top: 20px;
             text-align: center;
+            padding: 0 15px;
         }
 
         #enter-button {
-            display: none; /* Começa escondido */
+            display: block;
             margin-top: 40px;
             padding: 15px 30px;
             font-size: 1.2em;
@@ -93,7 +86,6 @@
             background-color: rgba(0, 0, 0, 0.7);
             padding: 15px;
             border-radius: 10px;
-            z-index: 500;
             color: #fff;
             font-size: 1.1em;
             display: none;
@@ -110,37 +102,36 @@
 </head>
 
 <body>
-    <video id="ar-video" muted autoplay playsinline></video>
-
-    <div id="loading-screen" class="ui-screen">
-        <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
-        <div id="progress-bar-container">
-            <div id="progress-bar"></div>
+    <!-- O overlay contém toda a UI para funcionar com WebXR -->
+    <div id="overlay">
+        <div id="loading-screen" class="ui-screen">
+            <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
+            <button id="enter-button">Entrar no Mundo Invertido</button>
+            <p id="loading-info"></p>
         </div>
-        <p id="loading-info">Carregando assets...</p>
-        <button id="enter-button">Iniciar Caçada</button>
+
+        <div id="game-ui">
+            <h2>Itens para Encontrar:</h2>
+            <ul id="collectibles-list">
+                <li data-item="demogorgon">Demogorgon</li>
+                <li data-item="will">Will Byers</li>
+                <li data-item="bike">Bicicleta</li>
+            </ul>
+        </div>
+
+        <div id="victory-screen" class="ui-screen hidden">
+            <h1>Você Conseguiu!</h1>
+            <p>Todos os itens foram encontrados.</p>
+        </div>
     </div>
 
-    <div id="game-ui">
-        <h2>Itens para Encontrar:</h2>
-        <ul id="collectibles-list">
-            <li data-item="demogorgon">Demogorgon</li>
-            <li data-item="will">Will Byers</li>
-            <li data-item="bike">Bicicleta</li>
-        </ul>
-    </div>
-
-    <div id="victory-screen" class="ui-screen hidden">
-        <h1>Você Conseguiu!</h1>
-        <p>Todos os itens foram encontrados.</p>
-    </div>
-
+    <!-- Cena A-Frame configurada para WebXR Hit-Testing -->
     <a-scene
         id="ar-scene"
+        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
+        ar-hit-test="target: #reticle; type: ar;"
         vr-mode-ui="enabled: false;"
         renderer="logarithmicDepthBuffer: true; colorManagement: true;"
-        embedded
-        style="visibility: hidden;"
     >
         <a-assets>
             <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
@@ -150,9 +141,17 @@
 
         <a-camera fov="80"></a-camera>
 
-        <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" position="0 -1 -5" scale="0.2 0.2 0.2" animation-mixer="loop: repeat"></a-entity>
-        <a-entity id="will" class="collectible" gltf-model="#will-model" position="2.5 0 -8" scale="0.4 0.4 0.4"></a-entity>
-        <a-entity id="bike" class="collectible" gltf-model="#bike-model" position="-2.5 0 -7" scale="0.5 0.5 0.5" rotation="0 45 0"></a-entity>
+        <!-- Retícula para mostrar onde o objeto será colocado -->
+        <a-entity id="reticle"
+            visible="false"
+            geometry="primitive: ring; radius-inner: 0.05; radius-outer: 0.1;"
+            material="color: #e72626; shader: flat;">
+        </a-entity>
+
+        <!-- Entidades colecionáveis, inicialmente invisíveis e na origem -->
+        <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" visible="false" animation-mixer="loop: repeat"></a-entity>
+        <a-entity id="will" class="collectible" gltf-model="#will-model" visible="false"></a-entity>
+        <a-entity id="bike" class="collectible" gltf-model="#bike-model" visible="false"></a-entity>
     </a-scene>
 
     <script>
@@ -161,83 +160,62 @@
             const loadingScreen = document.getElementById('loading-screen');
             const enterButton = document.getElementById('enter-button');
             const loadingInfo = document.getElementById('loading-info');
-            const progressBar = document.getElementById('progress-bar');
             const gameUi = document.getElementById('game-ui');
             const victoryScreen = document.getElementById('victory-screen');
-            const video = document.getElementById('ar-video');
+            const reticle = document.getElementById('reticle');
 
             const collectibles = { demogorgon: false, will: false, bike: false };
             let foundCollectibles = 0;
+            const objectsToPlace = ['demogorgon', 'will', 'bike'];
 
-            // 1. Simular carregamento de assets
-            function simulateLoading() {
-                let progress = 0;
-                const interval = setInterval(() => {
-                    progress += 25;
-                    progressBar.style.width = progress + '%';
-                    if (progress >= 100) {
-                        clearInterval(interval);
-                        loadingInfo.innerText = "Pronto para iniciar!";
-                        document.getElementById('progress-bar-container').style.display = 'none';
-                        enterButton.style.display = 'block';
-                    }
-                }, 400);
-            }
-            simulateLoading();
-
-            // 2. Iniciar AR ao clicar no botão
+            // O botão de "Entrar" agora apenas inicia a sessão AR do navegador
             enterButton.addEventListener('click', () => {
-                startAr();
+                sceneEl.requestSession(); // Inicia a sessão WebXR
+                loadingInfo.innerText = "Iniciando AR... Por favor, aceite o pedido do navegador.";
             });
 
-            async function startAr() {
-                loadingInfo.innerText = "Solicitando acesso à câmera...";
-                loadingInfo.style.display = 'block';
-                enterButton.style.display = 'none';
-
-                try {
-                    // Obter stream da câmera
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: 'environment' }
-                    });
-                    video.srcObject = stream;
-                    
-                    // Aguardar o vídeo começar a tocar (método robusto)
-                    await video.play();
-
-                    loadingInfo.innerText = "Iniciando AR...";
-
-                    // Iniciar AR.js com o vídeo como fonte
-                    sceneEl.setAttribute('arjs', {
-                        sourceType: 'video',
-                        sourceElement: '#ar-video',
-                        displayMode: 'portrait',
-                        trackingMethod: 'best',
-                        debugUIEnabled: false
-                    });
-
-                    // Adicionar cursor à câmera
-                    const camera = sceneEl.querySelector('a-camera');
-                    const cursor = document.createElement('a-cursor');
-                    camera.appendChild(cursor);
-
-                    // Mostrar a cena e a UI do jogo
-                    loadingScreen.classList.add('hidden');
-                    sceneEl.style.visibility = 'visible';
-                    gameUi.style.display = 'block';
-                    initGame();
-
-                } catch (err) {
-                    console.error("Erro ao iniciar a câmera: ", err);
-                    loadingInfo.innerText = `Erro: ${err.name}. Verifique as permissões e recarregue.`;
-                    enterButton.style.display = 'block';
-                }
-            }
+            sceneEl.addEventListener('enter-vr', () => {
+                loadingScreen.classList.add('hidden');
+                gameUi.style.display = 'block';
+                initGame();
+            });
 
             function initGame() {
-                const collectibleEntities = document.querySelectorAll('.collectible');
-                collectibleEntities.forEach(entity => {
-                    entity.addEventListener('click', () => collectItem(entity.id));
+                loadingInfo.innerText = "Mova o celular para encontrar uma superfície (chão, mesa)...";
+                gameUi.appendChild(loadingInfo); // Move a info para a UI do jogo
+
+                sceneEl.addEventListener('ar-hit-test-achieved', () => {
+                    reticle.setAttribute('visible', true);
+                    loadingInfo.innerText = "Toque no anel para colocar um objeto.";
+                });
+
+                sceneEl.addEventListener('ar-hit-test-lost', () => {
+                    reticle.setAttribute('visible', false);
+                    loadingInfo.innerText = "Mova o celular para encontrar uma superfície...";
+                });
+
+                // Coloca um objeto ao tocar na tela
+                sceneEl.addEventListener('select', () => {
+                    if (reticle.getAttribute('visible') && objectsToPlace.length > 0) {
+                        const objectId = objectsToPlace.shift();
+                        const objectEntity = document.getElementById(objectId);
+
+                        const position = reticle.getAttribute('position');
+                        objectEntity.setAttribute('position', position);
+
+                        const scale = (objectId === 'demogorgon') ? '0.2 0.2 0.2' : (objectId === 'will') ? '0.4 0.4 0.4' : '0.5 0.5 0.5';
+                        objectEntity.setAttribute('scale', scale);
+                        objectEntity.setAttribute('visible', true);
+
+                        objectEntity.addEventListener('click', () => collectItem(objectId));
+
+                        if (objectsToPlace.length > 0) {
+                            loadingInfo.innerText = `Ótimo! Agora coloque o próximo.`;
+                        } else {
+                            loadingInfo.innerText = "Todos os itens foram colocados! Agora, ande até eles e colete-os.";
+                            setTimeout(() => { loadingInfo.style.display = 'none'; }, 4000);
+                        }
+                    }
                 });
             }
 

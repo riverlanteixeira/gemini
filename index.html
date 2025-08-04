@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Stranger Things AR - Caça aos Objetos</title>
-    <meta name="description" content="Encontre e posicione os objetos no Mundo Invertido">
+    <meta name="description" content="Descubra os objetos que aparecem no seu mundo">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <!-- A-Frame -->
@@ -105,8 +105,10 @@
 
         <a-camera fov="80"></a-camera>
 
+        <!-- Retícula (Anel) - agora apenas um indicador visual -->
         <a-entity id="reticle" visible="false" geometry="primitive: ring; radius-inner: 0.05; radius-outer: 0.1;" material="color: #e72626; shader: flat;"></a-entity>
 
+        <!-- Entidades colecionáveis -->
         <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" visible="false" animation-mixer="loop: repeat"></a-entity>
         <a-entity id="will" class="collectible" gltf-model="#will-model" visible="false"></a-entity>
         <a-entity id="bike" class="collectible" gltf-model="#bike-model" visible="false"></a-entity>
@@ -152,6 +154,7 @@
             const collectibles = { demogorgon: false, will: false, bike: false };
             let foundCollectibles = 0;
             const objectsToPlace = ['demogorgon', 'will', 'bike'];
+            let canPlace = true; // Flag para controlar o posicionamento automático
 
             function simulateLoading() {
                 let progress = 0;
@@ -187,24 +190,15 @@
             function initGame() {
                 const instructionText = document.createElement('p');
                 instructionText.id = 'instruction-text';
-                instructionText.innerText = "Mova o celular para encontrar uma superfície (chão, mesa)...";
+                instructionText.innerText = "Mova o celular para descobrir objetos no seu ambiente...";
                 gameUi.appendChild(instructionText);
 
-                sceneEl.addEventListener('ar-hit-test-start', () => {
-                    instructionText.innerText = "Mova o celular para encontrar uma superfície...";
-                });
-
+                // Evento quando o anel encontra uma superfície
                 sceneEl.addEventListener('ar-hit-test-achieved', () => {
                     reticle.setAttribute('visible', true);
-                    instructionText.innerText = "Toque no anel para colocar um objeto.";
-                });
 
-                sceneEl.addEventListener('ar-hit-test-lost', () => {
-                    reticle.setAttribute('visible', false);
-                });
-
-                sceneEl.addEventListener('select', () => {
-                    if (reticle.getAttribute('visible') && objectsToPlace.length > 0) {
+                    // Se pudermos colocar um objeto, coloque-o automaticamente
+                    if (canPlace && objectsToPlace.length > 0) {
                         const objectId = objectsToPlace.shift();
                         const objectEntity = document.getElementById(objectId);
 
@@ -214,22 +208,32 @@
                         objectEntity.setAttribute('scale', scale);
                         objectEntity.setAttribute('visible', true);
 
+                        // Adiciona o cursor e o listener de clique para coleta
+                        objectEntity.setAttribute('cursor', 'rayOrigin: mouse');
                         objectEntity.addEventListener('click', () => collectItem(objectId));
 
                         if (objectsToPlace.length > 0) {
-                            instructionText.innerText = `Ótimo! Agora coloque o próximo.`;
+                            instructionText.innerText = `Objeto encontrado! Procure uma nova superfície para o próximo.`;
                         } else {
-                            instructionText.innerText = "Todos os itens foram colocados! Agora, ande até eles e colete-os.";
+                            instructionText.innerText = "Todos os itens apareceram! Agora, colete-os.";
                             setTimeout(() => { instructionText.style.display = 'none'; }, 4000);
                         }
+                        
+                        canPlace = false; // Impede a colocação de outro objeto imediatamente
                     }
+                });
+
+                // Quando o anel perde a superfície, permite colocar um novo objeto na próxima vez
+                sceneEl.addEventListener('ar-hit-test-lost', () => {
+                    reticle.setAttribute('visible', false);
+                    canPlace = true;
                 });
             }
 
             function collectItem(id) {
                 if (collectibles[id]) return;
                 collectibles[id] = true;
-                foundCollectibles = 0;
+                foundCollectibles++;
                 const entity = document.getElementById(id);
                 if (entity) entity.setAttribute('visible', 'false');
                 const listItem = document.querySelector(`#collectibles-list li[data-item="${id}"]`);

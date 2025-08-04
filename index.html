@@ -17,12 +17,10 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* O vídeo que alimenta o AR.js fica oculto */
+        /* O vídeo que alimenta o AR.js fica fora da tela */
         #ar-video {
             position: fixed;
-            top: 0; left: 0;
-            width: 1px; height: 1px;
-            opacity: 0;
+            top: -9999px; left: -9999px;
             z-index: -1;
         }
 
@@ -59,6 +57,7 @@
             color: #ccc;
             height: 20px;
             margin-top: 20px;
+            text-align: center;
         }
 
         #enter-button {
@@ -149,134 +148,96 @@
         <p>Todos os itens foram encontrados.</p>
     </div>
 
-    <!-- O contêiner da cena AR será preenchido via script -->
-    <div id="ar-container"></div>
+    <!-- Cena AR (inicialmente vazia e invisível) -->
+    <a-scene
+        id="ar-scene"
+        vr-mode-ui="enabled: false;"
+        renderer="logarithmicDepthBuffer: true; colorManagement: true;"
+        embedded
+        style="visibility: hidden;"
+    >
+        <!-- Assets -->
+        <a-assets>
+            <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
+            <a-asset-item id="will-model" src="assets/models/will_byers.glb"></a-asset-item>
+            <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
+        </a-assets>
+
+        <!-- Câmera será configurada via JS -->
+        <a-camera fov="80"></a-camera>
+
+        <!-- Entidades Colecionáveis -->
+        <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" position="0 -1 -5" scale="0.2 0.2 0.2" animation-mixer="loop: repeat"></a-entity>
+        <a-entity id="will" class="collectible" gltf-model="#will-model" position="2.5 0 -8" scale="0.4 0.4 0.4"></a-entity>
+        <a-entity id="bike" class="collectible" gltf-model="#bike-model" position="-2.5 0 -7" scale="0.5 0.5 0.5" rotation="0 45 0"></a-entity>
+
+    </a-scene>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const sceneEl = document.getElementById('ar-scene');
             const loadingScreen = document.getElementById('loading-screen');
-            const loadingInfo = document.getElementById('loading-info');
             const enterButton = document.getElementById('enter-button');
+            const loadingInfo = document.getElementById('loading-info');
             const gameUi = document.getElementById('game-ui');
             const victoryScreen = document.getElementById('victory-screen');
-            const collectiblesList = document.getElementById('collectibles-list');
             const video = document.getElementById('ar-video');
 
             const collectibles = { demogorgon: false, will: false, bike: false };
             let foundCollectibles = 0;
 
             enterButton.addEventListener('click', () => {
-                initializeAr();
+                startAr();
             });
 
-            async function initializeAr() {
+            async function startAr() {
                 loadingInfo.innerText = "Solicitando acesso à câmera...";
                 enterButton.style.display = 'none';
 
                 try {
-                    // 1. Encontrar o deviceId da câmera ideal
-                    await navigator.mediaDevices.getUserMedia({ video: true }); // Pede permissão
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                    
-                    let bestDevice = null;
-                    for (const device of videoDevices) {
-                        const label = device.label.toLowerCase();
-                        if (label.includes('back') && !label.includes('telephoto')) {
-                            bestDevice = device;
-                            break;
-                        }
-                    }
-                    if (!bestDevice) bestDevice = videoDevices.find(device => device.label.toLowerCase().includes('back'));
-                    if (!bestDevice && videoDevices.length > 0) bestDevice = videoDevices[0];
-                    if (!bestDevice) throw new Error("Nenhuma câmera traseira encontrada.");
-
-                    // 2. Obter a stream da câmera manualmente
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { 
-                            deviceId: { exact: bestDevice.deviceId },
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
+                    // 1. Obter a stream da câmera com as configurações mais genéricas
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment' }
                     });
                     video.srcObject = stream;
 
-                    // 3. Esperar o vídeo começar a tocar
-                    video.addEventListener('loadedmetadata', () => {
-                        video.play();
-                        loadingInfo.innerText = "Iniciando a cena AR...";
-                        
-                        // 4. Criar a cena AR somente agora
-                        createArScene();
-                        
+                    // 2. Esperar o vídeo começar a tocar
+                    video.addEventListener('playing', () => {
+                        loadingInfo.innerText = "Iniciando AR...";
+
+                        // 3. Iniciar o AR.js com o vídeo como fonte e em modo retrato
+                        sceneEl.setAttribute('arjs', {
+                            sourceType: 'video',
+                            sourceElement: '#ar-video',
+                            displayMode: 'portrait',
+                            trackingMethod: 'best',
+                            debugUIEnabled: false
+                        });
+
+                        // Adiciona o cursor à câmera
+                        const camera = sceneEl.querySelector('a-camera');
+                        const cursor = document.createElement('a-cursor');
+                        camera.appendChild(cursor);
+
+                        // 4. Mostrar a cena e a UI do jogo
                         loadingScreen.classList.add('hidden');
+                        sceneEl.style.visibility = 'visible';
                         gameUi.style.display = 'block';
+                        initGame();
                     });
 
                 } catch (err) {
-                    console.error("Erro ao iniciar AR: ", err);
-                    loadingInfo.innerText = `Falha ao iniciar a câmera: ${err.name}. Verifique as permissões.`;
+                    console.error("Erro ao iniciar a câmera: ", err);
+                    loadingInfo.innerText = `Erro: ${err.name}. Verifique as permissões da câmera e recarregue.`;
                     enterButton.style.display = 'block';
                 }
             }
 
-            function createArScene() {
-                const arContainer = document.getElementById('ar-container');
-                const sceneEl = document.createElement('a-scene');
-                
-                sceneEl.setAttribute('vr-mode-ui', 'enabled: false;');
-                sceneEl.setAttribute('renderer', 'logarithmicDepthBuffer: true; colorManagement: true;');
-                sceneEl.setAttribute('embedded', true);
-                // A fonte agora é o nosso elemento de vídeo
-                sceneEl.setAttribute('arjs', 'sourceType: video; sourceElement: #ar-video; trackingMethod: best; debugUIEnabled: false;');
-
-                const assetsEl = document.createElement('a-assets');
-                assetsEl.innerHTML = `
-                    <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
-                    <a-asset-item id="will-model" src="assets/models/will_byers.glb"></a-asset-item>
-                    <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
-                `;
-                sceneEl.appendChild(assetsEl);
-
-                const cameraEl = document.createElement('a-camera');
-                cameraEl.setAttribute('fov', 60);
-                cameraEl.innerHTML = '<a-cursor></a-cursor>';
-                sceneEl.appendChild(cameraEl);
-
-                // Adiciona as entidades...
-                addCollectiblesToScene(sceneEl);
-
-                arContainer.appendChild(sceneEl);
-                initGame();
-            }
-
-            function addCollectiblesToScene(sceneEl) {
-                const entities = [
-                    { id: 'demogorgon', model: '#demogorgon-model', pos: '0 -1 -5', scale: '0.2 0.2 0.2', anim: 'loop: repeat' },
-                    { id: 'will', model: '#will-model', pos: '4 0 -8', scale: '0.4 0.4 0.4' },
-                    { id: 'bike', model: '#bike-model', pos: '-4 0 -10', scale: '0.5 0.5 0.5', rot: '0 45 0' }
-                ];
-
-                entities.forEach(data => {
-                    const el = document.createElement('a-entity');
-                    el.id = data.id;
-                    el.classList.add('collectible');
-                    el.setAttribute('gltf-model', data.model);
-                    el.setAttribute('position', data.pos);
-                    el.setAttribute('scale', data.scale);
-                    if (data.rot) el.setAttribute('rotation', data.rot);
-                    if (data.anim) el.setAttribute('animation-mixer', data.anim);
-                    sceneEl.appendChild(el);
-                });
-            }
-
             function initGame() {
-                setTimeout(() => {
-                    const collectibleEntities = document.querySelectorAll('.collectible');
-                    collectibleEntities.forEach(entity => {
-                        entity.addEventListener('click', () => collectItem(entity.id));
-                    });
-                }, 1500); // Aumenta o tempo para garantir que tudo esteja pronto
+                const collectibleEntities = document.querySelectorAll('.collectible');
+                collectibleEntities.forEach(entity => {
+                    entity.addEventListener('click', () => collectItem(entity.id));
+                });
             }
 
             function collectItem(id) {

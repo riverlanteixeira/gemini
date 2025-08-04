@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Stranger Things AR - Caça aos Objetos</title>
-    <meta name="description" content="Encontre os objetos que aparecem no seu mundo">
+    <meta name="description" content="Encontre e posicione os objetos no Mundo Invertido">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <!-- A-Frame -->
@@ -41,39 +41,37 @@
 
         #logo { width: 80%; max-width: 400px; margin-bottom: 30px; }
 
+        #progress-bar-container {
+            width: 70%; max-width: 350px; height: 20px;
+            border: 2px solid #e72626; border-radius: 10px;
+            overflow: hidden; margin-bottom: 15px;
+        }
+
+        #progress-bar {
+            width: 0%; height: 100%;
+            background-color: #e72626;
+            transition: width 0.4s ease-in-out;
+        }
+
         #loading-info {
-            font-size: 1em;
-            color: #ccc;
-            height: 40px;
-            margin-top: 20px;
-            text-align: center;
-            padding: 0 15px;
+            font-size: 1em; color: #ccc; height: 40px;
+            margin-top: 10px; text-align: center; padding: 0 15px;
         }
 
         #enter-button {
-            display: block;
-            margin-top: 40px;
-            padding: 15px 30px;
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #fff;
-            background-color: #e72626;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            display: none; /* Começa escondido */
+            margin-top: 40px; padding: 15px 30px;
+            font-size: 1.2em; font-weight: bold; color: #fff;
+            background-color: #e72626; border: none; border-radius: 5px;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 2px;
         }
 
         #game-ui {
             position: absolute;
             top: 20px; left: 20px;
             background-color: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 10px;
-            color: #fff;
-            font-size: 1.1em;
-            display: none;
+            padding: 15px; border-radius: 10px;
+            color: #fff; font-size: 1.1em; display: none;
         }
 
         #game-ui h2 { margin: 0 0 10px 0; padding-bottom: 5px; border-bottom: 2px solid #e72626; font-size: 1.2em; }
@@ -87,11 +85,11 @@
 </head>
 
 <body>
-    <!-- A-Frame Scene com Detecção de Planos -->
+    <!-- A-Frame Scene com Hit-Test -->
     <a-scene
         id="ar-scene"
-        webxr="requiredFeatures: plane-detection, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
-        ar-plane-detector
+        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
+        ar-hit-test="target: #reticle; type: ar;"
         vr-mode-ui="enabled: false;"
         renderer="logarithmicDepthBuffer: true; colorManagement: true;"
     >
@@ -103,7 +101,8 @@
 
         <a-camera fov="80"></a-camera>
 
-        <!-- Entidades colecionáveis, inicialmente invisíveis -->
+        <a-entity id="reticle" visible="false" geometry="primitive: ring; radius-inner: 0.05; radius-outer: 0.1;" material="color: #e72626; shader: flat;"></a-entity>
+
         <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" visible="false" animation-mixer="loop: repeat"></a-entity>
         <a-entity id="will" class="collectible" gltf-model="#will-model" visible="false"></a-entity>
         <a-entity id="bike" class="collectible" gltf-model="#bike-model" visible="false"></a-entity>
@@ -113,8 +112,11 @@
     <div id="overlay">
         <div id="loading-screen" class="ui-screen ui-element">
             <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
+            <div id="progress-bar-container">
+                <div id="progress-bar"></div>
+            </div>
+            <p id="loading-info">Carregando assets...</p>
             <button id="enter-button" class="ui-element">Entrar no Mundo Invertido</button>
-            <p id="loading-info"></p>
         </div>
 
         <div id="game-ui" class="ui-element">
@@ -138,13 +140,32 @@
             const loadingScreen = document.getElementById('loading-screen');
             const enterButton = document.getElementById('enter-button');
             const loadingInfo = document.getElementById('loading-info');
+            const progressBar = document.getElementById('progress-bar');
             const gameUi = document.getElementById('game-ui');
             const victoryScreen = document.getElementById('victory-screen');
+            const reticle = document.getElementById('reticle');
 
             const collectibles = { demogorgon: false, will: false, bike: false };
             let foundCollectibles = 0;
             const objectsToPlace = ['demogorgon', 'will', 'bike'];
 
+            // 1. Simular carregamento de assets
+            function simulateLoading() {
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 25;
+                    progressBar.style.width = progress + '%';
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        loadingInfo.innerText = "Pronto para iniciar!";
+                        document.getElementById('progress-bar-container').style.display = 'none';
+                        enterButton.style.display = 'block';
+                    }
+                }, 300);
+            }
+            simulateLoading();
+
+            // 2. Iniciar AR ao clicar no botão
             enterButton.addEventListener('click', async () => {
                 try {
                     await sceneEl.enterAR();
@@ -164,29 +185,41 @@
             function initGame() {
                 const instructionText = document.createElement('p');
                 instructionText.id = 'instruction-text';
-                instructionText.innerText = "Mova o celular para descobrir objetos no seu ambiente...";
+                instructionText.innerText = "Mova o celular para encontrar uma superfície (chão, mesa)...";
                 gameUi.appendChild(instructionText);
 
-                // Evento para quando um plano é detectado
-                sceneEl.addEventListener('ar-plane-detected', (event) => {
-                    if (objectsToPlace.length > 0) {
-                        const plane = event.detail.plane;
+                sceneEl.addEventListener('ar-hit-test-start', () => {
+                    instructionText.innerText = "Mova o celular para encontrar uma superfície...";
+                });
+
+                sceneEl.addEventListener('ar-hit-test-achieved', () => {
+                    reticle.setAttribute('visible', true);
+                    instructionText.innerText = "Toque no anel para colocar um objeto.";
+                });
+
+                sceneEl.addEventListener('ar-hit-test-lost', () => {
+                    reticle.setAttribute('visible', false);
+                });
+
+                // Evento de toque na tela para posicionar o objeto
+                sceneEl.addEventListener('select', () => {
+                    if (reticle.getAttribute('visible') && objectsToPlace.length > 0) {
                         const objectId = objectsToPlace.shift();
                         const objectEntity = document.getElementById(objectId);
 
-                        // Coloca o objeto no centro do plano detectado
-                        plane.object3D.getWorldPosition(objectEntity.object3D.position);
-                        
+                        reticle.object3D.getWorldPosition(objectEntity.object3D.position);
+
                         const scale = (objectId === 'demogorgon') ? '0.2 0.2 0.2' : (objectId === 'will') ? '0.4 0.4 0.4' : '0.5 0.5 0.5';
                         objectEntity.setAttribute('scale', scale);
                         objectEntity.setAttribute('visible', true);
 
-                        // Adiciona o cursor e o listener de clique APENAS ao objeto visível
-                        objectEntity.setAttribute('cursor', 'rayOrigin: mouse');
+                        // Adiciona o listener de clique para coleta
                         objectEntity.addEventListener('click', () => collectItem(objectId));
 
-                        if (objectsToPlace.length === 0) {
-                            instructionText.innerText = "Todos os itens apareceram! Agora, colete-os.";
+                        if (objectsToPlace.length > 0) {
+                            instructionText.innerText = `Ótimo! Agora coloque o próximo.`;
+                        } else {
+                            instructionText.innerText = "Todos os itens foram colocados! Agora, ande até eles e colete-os.";
                             setTimeout(() => { instructionText.style.display = 'none'; }, 4000);
                         }
                     }

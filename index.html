@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <title>Stranger Things AR - Caça aos Objetos</title>
     <meta name="description" content="Encontre os objetos perdidos no Mundo Invertido">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Força a renderização no modo mobile e desativa o zoom do usuário na página -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <!-- A-Frame e AR.js -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -174,15 +175,15 @@
             <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
         </a-assets>
 
-        <!-- Câmera AR com Cursor -->
-        <a-camera>
+        <!-- Câmera AR com FOV ajustado para combater o zoom -->
+        <a-camera fov="80">
             <a-cursor></a-cursor>
         </a-camera>
 
         <!-- Entidades Colecionáveis -->
-        <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" position="0 -1.5 -8" scale="0.8 0.8 0.8" animation-mixer="clip: *"></a-entity>
-        <a-entity id="will" class="collectible" gltf-model="#will-model" position="5 0 -10" scale="0.5 0.5 0.5"></a-entity>
-        <a-entity id="bike" class="collectible" gltf-model="#bike-model" position="-5 0 -12" scale="0.6 0.6 0.6" rotation="0 45 0"></a-entity>
+        <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" position="0 -1 -5" scale="0.2 0.2 0.2" animation-mixer="clip: *"></a-entity>
+        <a-entity id="will" class="collectible" gltf-model="#will-model" position="4 0 -8" scale="0.4 0.4 0.4"></a-entity>
+        <a-entity id="bike" class="collectible" gltf-model="#bike-model" position="-4 0 -10" scale="0.5 0.5 0.5" rotation="0 45 0"></a-entity>
 
     </a-scene>
 

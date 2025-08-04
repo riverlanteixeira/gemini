@@ -99,6 +99,10 @@
             <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
         </a-assets>
 
+        <!-- Iluminação da Cena -->
+        <a-light type="ambient" color="#FFF" intensity="0.7"></a-light>
+        <a-light type="directional" color="#FFF" intensity="0.8" position="-1 2 1"></a-light>
+
         <a-camera fov="80"></a-camera>
 
         <a-entity id="reticle" visible="false" geometry="primitive: ring; radius-inner: 0.05; radius-outer: 0.1;" material="color: #e72626; shader: flat;"></a-entity>
@@ -149,7 +153,6 @@
             let foundCollectibles = 0;
             const objectsToPlace = ['demogorgon', 'will', 'bike'];
 
-            // 1. Simular carregamento de assets
             function simulateLoading() {
                 let progress = 0;
                 const interval = setInterval(() => {
@@ -165,7 +168,6 @@
             }
             simulateLoading();
 
-            // 2. Iniciar AR ao clicar no botão
             enterButton.addEventListener('click', async () => {
                 try {
                     await sceneEl.enterAR();
@@ -201,7 +203,6 @@
                     reticle.setAttribute('visible', false);
                 });
 
-                // Evento de toque na tela para posicionar o objeto
                 sceneEl.addEventListener('select', () => {
                     if (reticle.getAttribute('visible') && objectsToPlace.length > 0) {
                         const objectId = objectsToPlace.shift();
@@ -213,7 +214,6 @@
                         objectEntity.setAttribute('scale', scale);
                         objectEntity.setAttribute('visible', true);
 
-                        // Adiciona o listener de clique para coleta
                         objectEntity.addEventListener('click', () => collectItem(objectId));
 
                         if (objectsToPlace.length > 0) {
@@ -229,7 +229,7 @@
             function collectItem(id) {
                 if (collectibles[id]) return;
                 collectibles[id] = true;
-                foundCollectibles++;
+                foundCollectibles = 0;
                 const entity = document.getElementById(id);
                 if (entity) entity.setAttribute('visible', 'false');
                 const listItem = document.querySelector(`#collectibles-list li[data-item="${id}"]`);

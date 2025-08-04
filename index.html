@@ -16,10 +16,6 @@
             overflow: hidden;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
-        /* Esconde o vídeo que usaremos para a stream da câmera */
-        #ar-video {
-            display: none;
-        }
 
         /* Telas de UI (Carregamento, Jogo, Vitória) */
         .ui-screen {
@@ -75,7 +71,7 @@
 
         /* Botão de Entrada */
         #enter-button {
-            display: none; /* Começa escondido */
+            display: block; /* Começa visível */
             margin-top: 40px;
             padding: 15px 30px;
             font-size: 1.2em;
@@ -136,16 +132,10 @@
 </head>
 
 <body>
-    <!-- Elemento de vídeo para receber a stream da câmera correta -->
-    <video id="ar-video" playsinline webkit-playsinline muted autoplay></video>
-
     <!-- Tela de Carregamento -->
     <div id="loading-screen" class="ui-screen">
         <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
-        <div id="progress-bar-container">
-            <div id="progress-bar"></div>
-        </div>
-        <p id="loading-info">Preparando o Mundo Invertido...</p>
+        <p id="loading-info">Encontre os objetos perdidos no Mundo Invertido!</p>
         <button id="enter-button">Iniciar Caçada</button>
     </div>
 
@@ -165,81 +155,12 @@
         <p>Todos os itens foram encontrados.</p>
     </div>
 
-    <!-- Cena de Realidade Aumentada -->
-    <a-scene
-        id="ar-scene"
-        vr-mode-ui="enabled: false;"
-        renderer="logarithmicDepthBuffer: true; colorManagement: true;"
-        embedded
-        style="visibility: hidden;"
-        arjs="trackingMethod: best; debugUIEnabled: false; sourceType: video; sourceElement: #ar-video;"
-    >
-        <!-- Assets a serem pré-carregados -->
-        <a-assets>
-            <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
-            <a-asset-item id="will-model" src="assets/models/will_byers.glb"></a-asset-item>
-            <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
-        </a-assets>
-
-        <!-- Câmera AR -->
-        <a-camera fov="60">
-            <a-cursor></a-cursor>
-        </a-camera>
-
-        <!-- Entidades Colecionáveis -->
-        <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" position="0 -1 -5" scale="0.2 0.2 0.2" animation-mixer="loop: repeat"></a-entity>
-        <a-entity id="will" class="collectible" gltf-model="#will-model" position="4 0 -8" scale="0.4 0.4 0.4"></a-entity>
-        <a-entity id="bike" class="collectible" gltf-model="#bike-model" position="-4 0 -10" scale="0.5 0.5 0.5" rotation="0 45 0"></a-entity>
-
-    </a-scene>
+    <!-- O contêiner da cena AR será preenchido via script -->
+    <div id="ar-container"></div>
 
     <script>
-        // Função para forçar a seleção da câmera principal (não-teleobjetiva)
-        async function setupArCamera() {
-            const video = document.getElementById('ar-video');
-            let stream;
-
-            try {
-                // Pede acesso genérico primeiro para obter permissão
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-
-                // Enumera os dispositivos para encontrar a câmera ideal
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                
-                let bestDevice = null;
-                // Procura por uma câmera traseira que NÃO seja teleobjetiva
-                for (const device of videoDevices) {
-                    if (device.label.toLowerCase().includes('back') && !device.label.toLowerCase().includes('telephoto')) {
-                        bestDevice = device;
-                        break;
-                    }
-                }
-
-                // Se não achou uma "não-teleobjetiva", tenta pegar a primeira traseira
-                if (!bestDevice) {
-                    bestDevice = videoDevices.find(device => device.label.toLowerCase().includes('back'));
-                }
-
-                // Se encontrou uma câmera melhor, troca a stream
-                if (bestDevice) {
-                    stream.getTracks().forEach(track => track.stop()); // Para a stream antiga
-                    stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: bestDevice.deviceId } } });
-                }
-
-                video.srcObject = stream;
-                video.play();
-
-            } catch (err) {
-                console.error("Erro ao acessar a câmera: ", err);
-                alert("Não foi possível acessar a câmera. Verifique as permissões do navegador.");
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            const sceneEl = document.getElementById('ar-scene');
+        document.addEventListener('DOMContentLoaded', () => {
             const loadingScreen = document.getElementById('loading-screen');
-            const progressBar = document.getElementById('progress-bar');
             const loadingInfo = document.getElementById('loading-info');
             const enterButton = document.getElementById('enter-button');
             const gameUi = document.getElementById('game-ui');
@@ -254,53 +175,110 @@
             const totalCollectibles = Object.keys(collectibles).length;
             let foundCollectibles = 0;
 
-            // --- Lógica de Carregamento Simulado ---
-            const assetsToLoad = [
-                { name: "demogorgon_animated.glb", progress: 30 },
-                { name: "will_byers.glb", progress: 60 },
-                { name: "bicicleta-will.glb", progress: 90 },
-                { name: "Iniciando câmera...", progress: 100 }
-            ];
-            let currentAssetIndex = 0;
+            // Lógica para o botão de entrada
+            enterButton.addEventListener('click', async () => {
+                loadingInfo.innerText = "Solicitando acesso à câmera...";
+                enterButton.style.display = 'none';
 
-            function simulateLoading() {
-                if (currentAssetIndex < assetsToLoad.length) {
-                    const asset = assetsToLoad[currentAssetIndex];
-                    loadingInfo.innerText = `Carregando: ${asset.name}`;
-                    progressBar.style.width = asset.progress + '%';
-                    currentAssetIndex++;
-                    setTimeout(simulateLoading, 500);
+                try {
+                    // 1. Encontrar a câmera correta
+                    await navigator.mediaDevices.getUserMedia({ video: true }); // Pede permissão genérica primeiro
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    let bestDevice = null;
+                    for (const device of videoDevices) {
+                        const label = device.label.toLowerCase();
+                        if (label.includes('back') && !label.includes('telephoto')) {
+                            bestDevice = device;
+                            break;
+                        }
+                    }
+                    if (!bestDevice) bestDevice = videoDevices.find(device => device.label.toLowerCase().includes('back'));
+                    if (!bestDevice && videoDevices.length > 0) bestDevice = videoDevices[0];
+                    if (!bestDevice) throw new Error("Nenhuma câmera encontrada.");
+
+                    loadingInfo.innerText = "Iniciando a cena AR...";
+
+                    // 2. Criar a cena AR dinamicamente
+                    createArScene(bestDevice.deviceId);
+
+                    // 3. Esconder a UI de carregamento e mostrar a UI do jogo
+                    loadingScreen.classList.add('hidden');
+                    gameUi.style.display = 'block';
+
+                } catch (err) {
+                    console.error("Erro ao iniciar AR: ", err);
+                    loadingInfo.innerText = "Falha ao iniciar a câmera. Verifique as permissões e recarregue a página.";
                 }
-            }
-            simulateLoading();
-
-            // Inicia a câmera ANTES de mostrar o botão de entrar
-            await setupArCamera();
-
-            sceneEl.addEventListener('loaded', () => {
-                loadingInfo.innerText = "Tudo pronto!";
-                progressBar.style.width = '100%';
-                setTimeout(() => {
-                    document.getElementById('progress-bar-container').style.display = 'none';
-                    loadingInfo.style.display = 'none';
-                    enterButton.style.display = 'block';
-                }, 500);
             });
-            
-            enterButton.addEventListener('click', () => {
-                loadingScreen.classList.add('hidden');
-                sceneEl.style.visibility = 'visible';
-                gameUi.style.display = 'block';
+
+            function createArScene(deviceId) {
+                const arContainer = document.getElementById('ar-container');
+                const sceneEl = document.createElement('a-scene');
+                
+                sceneEl.setAttribute('vr-mode-ui', 'enabled: false;');
+                sceneEl.setAttribute('renderer', 'logarithmicDepthBuffer: true; colorManagement: true;');
+                sceneEl.setAttribute('embedded', true);
+                sceneEl.setAttribute('arjs', `sourceType: webcam; sourceWidth: 1280; sourceHeight: 720; trackingMethod: best; debugUIEnabled: false; deviceId: ${deviceId}`);
+
+                // Assets
+                const assetsEl = document.createElement('a-assets');
+                assetsEl.innerHTML = `
+                    <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
+                    <a-asset-item id="will-model" src="assets/models/will_byers.glb"></a-asset-item>
+                    <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
+                `;
+                sceneEl.appendChild(assetsEl);
+
+                // Câmera
+                const cameraEl = document.createElement('a-camera');
+                cameraEl.setAttribute('fov', 60);
+                cameraEl.innerHTML = '<a-cursor></a-cursor>';
+                sceneEl.appendChild(cameraEl);
+
+                // Entidades
+                const demogorgonEl = document.createElement('a-entity');
+                demogorgonEl.id = 'demogorgon';
+                demogorgonEl.classList.add('collectible');
+                demogorgonEl.setAttribute('gltf-model', '#demogorgon-model');
+                demogorgonEl.setAttribute('position', '0 -1 -5');
+                demogorgonEl.setAttribute('scale', '0.2 0.2 0.2');
+                demogorgonEl.setAttribute('animation-mixer', 'loop: repeat');
+                sceneEl.appendChild(demogorgonEl);
+
+                const willEl = document.createElement('a-entity');
+                willEl.id = 'will';
+                willEl.classList.add('collectible');
+                willEl.setAttribute('gltf-model', '#will-model');
+                willEl.setAttribute('position', '4 0 -8');
+                willEl.setAttribute('scale', '0.4 0.4 0.4');
+                sceneEl.appendChild(willEl);
+
+                const bikeEl = document.createElement('a-entity');
+                bikeEl.id = 'bike';
+                bikeEl.classList.add('collectible');
+                bikeEl.setAttribute('gltf-model', '#bike-model');
+                bikeEl.setAttribute('position', '-4 0 -10');
+                bikeEl.setAttribute('scale', '0.5 0.5 0.5');
+                bikeEl.setAttribute('rotation', '0 45 0');
+                sceneEl.appendChild(bikeEl);
+
+                // Adiciona a cena ao DOM e inicia o jogo
+                arContainer.appendChild(sceneEl);
                 initGame();
-            });
+            }
 
             function initGame() {
-                const collectibleEntities = document.querySelectorAll('.collectible');
-                collectibleEntities.forEach(entity => {
-                    entity.addEventListener('click', () => {
-                        collectItem(entity.id);
+                // A cena pode demorar um pouco para inicializar os nós
+                setTimeout(() => {
+                    const collectibleEntities = document.querySelectorAll('.collectible');
+                    collectibleEntities.forEach(entity => {
+                        entity.addEventListener('click', () => {
+                            collectItem(entity.id);
+                        });
                     });
-                });
+                }, 1000); // Espera 1s para garantir que a cena está pronta
             }
 
             function collectItem(id) {
@@ -308,7 +286,7 @@
                 collectibles[id] = true;
                 foundCollectibles++;
                 const entity = document.getElementById(id);
-                entity.setAttribute('visible', 'false');
+                if (entity) entity.setAttribute('visible', 'false');
                 const listItem = collectiblesList.querySelector(`li[data-item="${id}"]`);
                 if(listItem) listItem.classList.add('found');
                 if (foundCollectibles >= totalCollectibles) showVictoryScreen();

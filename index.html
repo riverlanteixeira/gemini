@@ -3,35 +3,27 @@
 <head>
     <meta charset="utf-8">
     <title>Stranger Things AR - Caça aos Objetos</title>
-    <meta name="description" content="Encontre e posicione os objetos no Mundo Invertido">
+    <meta name="description" content="Encontre os objetos que aparecem no seu mundo">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <!-- A-Frame -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 
     <style>
-        /* Garante que o layout ocupe toda a tela desde o início */
         html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
+            margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* O overlay contém toda a UI */
         #overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             z-index: 10;
-            pointer-events: none; /* Deixa os cliques passarem para a cena por padrão */
+            pointer-events: none;
         }
 
-        /* Elementos da UI devem ser clicáveis */
-        .ui-element {
-            pointer-events: auto;
-        }
+        .ui-element { pointer-events: auto; }
 
         .ui-screen {
             position: absolute;
@@ -45,16 +37,9 @@
             transition: opacity 0.5s ease-out;
         }
 
-        .ui-screen.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
+        .ui-screen.hidden { opacity: 0; pointer-events: none; }
 
-        #logo {
-            width: 80%;
-            max-width: 400px;
-            margin-bottom: 30px;
-        }
+        #logo { width: 80%; max-width: 400px; margin-bottom: 30px; }
 
         #loading-info {
             font-size: 1em;
@@ -102,11 +87,11 @@
 </head>
 
 <body>
-    <!-- A-Frame Scene -->
+    <!-- A-Frame Scene com Detecção de Planos -->
     <a-scene
         id="ar-scene"
-        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
-        ar-hit-test="target: #reticle; type: ar;"
+        webxr="requiredFeatures: plane-detection, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
+        ar-plane-detector
         vr-mode-ui="enabled: false;"
         renderer="logarithmicDepthBuffer: true; colorManagement: true;"
     >
@@ -118,8 +103,7 @@
 
         <a-camera fov="80"></a-camera>
 
-        <a-entity id="reticle" visible="false" geometry="primitive: ring; radius-inner: 0.05; radius-outer: 0.1;" material="color: #e72626; shader: flat;"></a-entity>
-
+        <!-- Entidades colecionáveis, inicialmente invisíveis -->
         <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" visible="false" animation-mixer="loop: repeat"></a-entity>
         <a-entity id="will" class="collectible" gltf-model="#will-model" visible="false"></a-entity>
         <a-entity id="bike" class="collectible" gltf-model="#bike-model" visible="false"></a-entity>
@@ -156,7 +140,6 @@
             const loadingInfo = document.getElementById('loading-info');
             const gameUi = document.getElementById('game-ui');
             const victoryScreen = document.getElementById('victory-screen');
-            const reticle = document.getElementById('reticle');
 
             const collectibles = { demogorgon: false, will: false, bike: false };
             let foundCollectibles = 0;
@@ -164,7 +147,6 @@
 
             enterButton.addEventListener('click', async () => {
                 try {
-                    // Usa o método correto e oficial do A-Frame para entrar em AR
                     await sceneEl.enterAR();
                     loadingInfo.innerText = "Iniciando AR...";
                 } catch (e) {
@@ -182,36 +164,29 @@
             function initGame() {
                 const instructionText = document.createElement('p');
                 instructionText.id = 'instruction-text';
-                instructionText.innerText = "Mova o celular para encontrar uma superfície (chão, mesa)...";
+                instructionText.innerText = "Mova o celular para descobrir objetos no seu ambiente...";
                 gameUi.appendChild(instructionText);
 
-                sceneEl.addEventListener('ar-hit-test-achieved', () => {
-                    reticle.setAttribute('visible', true);
-                    instructionText.innerText = "Toque no anel para colocar um objeto.";
-                });
-
-                sceneEl.addEventListener('ar-hit-test-lost', () => {
-                    reticle.setAttribute('visible', false);
-                    instructionText.innerText = "Mova o celular para encontrar uma superfície...";
-                });
-
-                sceneEl.addEventListener('select', () => {
-                    if (reticle.getAttribute('visible') && objectsToPlace.length > 0) {
+                // Evento para quando um plano é detectado
+                sceneEl.addEventListener('ar-plane-detected', (event) => {
+                    if (objectsToPlace.length > 0) {
+                        const plane = event.detail.plane;
                         const objectId = objectsToPlace.shift();
                         const objectEntity = document.getElementById(objectId);
 
-                        reticle.object3D.getWorldPosition(objectEntity.object3D.position);
-
+                        // Coloca o objeto no centro do plano detectado
+                        plane.object3D.getWorldPosition(objectEntity.object3D.position);
+                        
                         const scale = (objectId === 'demogorgon') ? '0.2 0.2 0.2' : (objectId === 'will') ? '0.4 0.4 0.4' : '0.5 0.5 0.5';
                         objectEntity.setAttribute('scale', scale);
                         objectEntity.setAttribute('visible', true);
 
+                        // Adiciona o cursor e o listener de clique APENAS ao objeto visível
+                        objectEntity.setAttribute('cursor', 'rayOrigin: mouse');
                         objectEntity.addEventListener('click', () => collectItem(objectId));
 
-                        if (objectsToPlace.length > 0) {
-                            instructionText.innerText = `Ótimo! Agora coloque o próximo.`;
-                        } else {
-                            instructionText.innerText = "Todos os itens foram colocados! Agora, ande até eles e colete-os.";
+                        if (objectsToPlace.length === 0) {
+                            instructionText.innerText = "Todos os itens apareceram! Agora, colete-os.";
                             setTimeout(() => { instructionText.style.display = 'none'; }, 4000);
                         }
                     }

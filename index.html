@@ -2,8 +2,8 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Stranger Things AR</title>
-    <meta name="description" content="Encontre o Demogorgon no Mundo Invertido">
+    <title>Stranger Things AR - Caça aos Objetos</title>
+    <meta name="description" content="Encontre os objetos perdidos no Mundo Invertido">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     
     <!-- A-Frame e AR.js -->
@@ -17,8 +17,8 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* Tela de Carregamento */
-        #loading-screen {
+        /* Telas de UI (Carregamento, Jogo, Vitória) */
+        .ui-screen {
             position: absolute;
             top: 0;
             left: 0;
@@ -34,7 +34,7 @@
             transition: opacity 0.5s ease-out;
         }
 
-        #loading-screen.fade-out {
+        .ui-screen.hidden {
             opacity: 0;
             pointer-events: none;
         }
@@ -77,21 +77,82 @@
             text-transform: uppercase;
             letter-spacing: 2px;
         }
+
+        /* UI do Jogo */
+        #game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 500;
+            color: #fff;
+            font-size: 1.1em;
+            display: none; /* Começa escondido */
+        }
+
+        #game-ui h2 {
+            margin: 0 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e72626;
+            font-size: 1.2em;
+        }
+
+        #collectibles-list li {
+            list-style: none;
+            margin-bottom: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        #collectibles-list li.found {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        /* Tela de Vitória */
+        #victory-screen h1 {
+            font-size: 2.5em;
+            color: #e72626;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+        #victory-screen p {
+            font-size: 1.2em;
+        }
+
     </style>
 </head>
 
 <body>
     <!-- Tela de Carregamento -->
-    <div id="loading-screen">
+    <div id="loading-screen" class="ui-screen">
         <img id="logo" src="assets/img/stranger-things-logo.png" alt="Stranger Things Logo">
         <div id="progress-bar-container">
             <div id="progress-bar"></div>
         </div>
-        <button id="enter-button">Entrar no Mundo Invertido</button>
+        <button id="enter-button">Iniciar Caçada</button>
+    </div>
+
+    <!-- UI do Jogo -->
+    <div id="game-ui">
+        <h2>Itens para Encontrar:</h2>
+        <ul id="collectibles-list">
+            <li data-item="demogorgon">Demogorgon</li>
+            <li data-item="will">Will Byers</li>
+            <li data-item="bike">Bicicleta</li>
+        </ul>
+    </div>
+
+    <!-- Tela de Vitória -->
+    <div id="victory-screen" class="ui-screen hidden">
+        <h1>Você Conseguiu!</h1>
+        <p>Todos os itens foram encontrados.</p>
     </div>
 
     <!-- Cena de Realidade Aumentada -->
     <a-scene
+        id="ar-scene"
         vr-mode-ui="enabled: false;"
         arjs="sourceType: webcam; trackingMethod: best; debugUIEnabled: false;"
         renderer="logarithmicDepthBuffer: true;"
@@ -101,33 +162,43 @@
         <!-- Assets a serem pré-carregados -->
         <a-assets>
             <a-asset-item id="demogorgon-model" src="assets/models/demogorgon_animated.glb"></a-asset-item>
+            <a-asset-item id="will-model" src="assets/models/will_byers.glb"></a-asset-item>
+            <a-asset-item id="bike-model" src="assets/models/bicicleta-will.glb"></a-asset-item>
         </a-assets>
 
-        <!-- Câmera AR -->
-        <a-camera gps-new-camera="gpsMinDistance: 5"></a-camera>
+        <!-- Câmera AR com Cursor -->
+        <a-camera gps-new-camera="gpsMinDistance: 5">
+            <a-cursor></a-cursor>
+        </a-camera>
 
-        <!-- Entidade do Demogorgon -->
-        <a-entity
-            gltf-model="#demogorgon-model"
-            position="0 -1.5 -5"
-            scale="0.8 0.8 0.8"
-            animation-mixer="clip: *"
-        ></a-entity>
+        <!-- Entidades Colecionáveis -->
+        <a-entity id="demogorgon" class="collectible" gltf-model="#demogorgon-model" position="0 -1.5 -8" scale="0.8 0.8 0.8" animation-mixer="clip: *"></a-entity>
+        <a-entity id="will" class="collectible" gltf-model="#will-model" position="5 0 -10" scale="0.5 0.5 0.5"></a-entity>
+        <a-entity id="bike" class="collectible" gltf-model="#bike-model" position="-5 0 -12" scale="0.6 0.6 0.6" rotation="0 45 0"></a-entity>
+
     </a-scene>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const scene = document.querySelector('a-scene');
+            const sceneEl = document.getElementById('ar-scene');
             const loadingScreen = document.getElementById('loading-screen');
             const progressBar = document.getElementById('progress-bar');
             const enterButton = document.getElementById('enter-button');
+            const gameUi = document.getElementById('game-ui');
+            const victoryScreen = document.getElementById('victory-screen');
+            const collectiblesList = document.getElementById('collectibles-list');
+
+            const collectibles = {
+                demogorgon: false,
+                will: false,
+                bike: false
+            };
+            const totalCollectibles = Object.keys(collectibles).length;
+            let foundCollectibles = 0;
 
             // Simula o carregamento dos assets da cena
-            scene.addEventListener('loaded', () => {
-                // Atualiza a barra de progresso para 100%
+            sceneEl.addEventListener('loaded', () => {
                 progressBar.style.width = '100%';
-
-                // Aguarda um pouco para o usuário ver a barra cheia
                 setTimeout(() => {
                     document.getElementById('progress-bar-container').style.display = 'none';
                     enterButton.style.display = 'block';
@@ -136,22 +207,54 @@
             
             // Lógica para o botão de entrada
             enterButton.addEventListener('click', () => {
-                // Esconde a tela de carregamento
-                loadingScreen.classList.add('fade-out');
+                loadingScreen.classList.add('hidden');
+                sceneEl.style.visibility = 'visible';
+                gameUi.style.display = 'block';
                 
-                // Torna a cena AR visível e inicia
-                const arScene = document.querySelector('a-scene');
-                arScene.style.visibility = 'visible';
-
-                // O clique neste botão é a "interação do usuário" que permite
-                // ao navegador solicitar acesso à câmera sem pop-ups adicionais.
+                initGame();
             });
 
-            // Simulação de progresso para a barra (opcional, mas melhora a experiência)
+            function initGame() {
+                const collectibleEntities = document.querySelectorAll('.collectible');
+                collectibleEntities.forEach(entity => {
+                    entity.addEventListener('click', () => {
+                        collectItem(entity.id);
+                    });
+                });
+            }
+
+            function collectItem(id) {
+                if (collectibles[id]) return; // Já foi coletado
+
+                collectibles[id] = true;
+                foundCollectibles++;
+
+                // Esconde o objeto
+                const entity = document.getElementById(id);
+                entity.setAttribute('visible', 'false');
+
+                // Atualiza a lista na UI
+                const listItem = collectiblesList.querySelector(`li[data-item="${id}"]`);
+                if(listItem) {
+                    listItem.classList.add('found');
+                }
+
+                // Verifica condição de vitória
+                if (foundCollectibles >= totalCollectibles) {
+                    showVictoryScreen();
+                }
+            }
+
+            function showVictoryScreen() {
+                gameUi.style.display = 'none';
+                victoryScreen.classList.remove('hidden');
+            }
+
+            // Simulação de progresso para a barra
             let progress = 0;
             const interval = setInterval(() => {
                 progress += 10;
-                if (progress <= 90) { // Não vai a 100% aqui, o evento 'loaded' fará isso
+                if (progress <= 90) {
                     progressBar.style.width = progress + '%';
                 } else {
                     clearInterval(interval);

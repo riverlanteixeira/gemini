@@ -3,89 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stranger Things - Realidade Aumentada</title>
+    <title>Realidade Aumentada - Demogorgon</title>
     <style>
-        body {
-            margin: 0;
-            font-family: sans-serif;
-            background-color: #111;
-            color: white;
-            text-align: center;
-            overflow: hidden;
-        }
-
+        body { margin: 0; font-family: sans-serif; background-color: #111; color: white; text-align: center; }
         #loader-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: #111;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
             z-index: 1000;
         }
-
-        #logo {
-            width: 90%;
-            max-width: 500px;
-            margin-bottom: 40px;
-        }
-        
-        #loading-text {
-            font-size: 1.2em;
-            margin-bottom: 20px;
-        }
-
         #loading-bar {
-            width: 80%;
-            max-width: 400px;
-            height: 20px;
-            border: 1px solid #fff;
-            border-radius: 10px;
+            width: 80%; max-width: 400px; height: 20px;
+            border: 1px solid #fff; border-radius: 10px;
             overflow: hidden;
         }
-
         #progress {
-            width: 0%;
-            height: 100%;
-            background-color: #fff;
+            width: 0%; height: 100%;
+            background-color: #0f0;
             transition: width 0.3s;
         }
-
         #enter-button {
-            display: none;
-            padding: 15px 30px;
-            font-size: 1.2em;
-            cursor: pointer;
-            background-color: #fff;
-            color: #111;
-            border: none;
-            border-radius: 10px;
+            display: none; padding: 15px 30px;
+            font-size: 1.2em; cursor: pointer;
+            background-color: #0f0; color: #111;
+            border: none; border-radius: 10px;
         }
-
         model-viewer {
-            width: 100vw;
-            height: 100vh;
+            width: 100vw; height: 100vh;
             display: none;
         }
     </style>
-    <!-- Importa o componente model-viewer -->
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 </head>
 <body>
 
     <div id="loader-container">
-        <img id="logo" src="assets/img/stranger-things-logo.png" alt="Logo de Stranger Things" onerror="this.style.display='none'; document.getElementById('loading-text').innerText = 'Stranger Things AR';">
-        <p id="loading-text">A carregar experiência...</p>
+        <p>Carregando experiência de RA...</p>
         <div id="loading-bar">
             <div id="progress"></div>
         </div>
     </div>
 
-    <button id="enter-button">Iniciar Experiência</button>
+    <button id="enter-button">Entrar na Realidade Aumentada</button>
 
     <model-viewer
         id="ar-viewer"
@@ -112,29 +71,16 @@
             progressBar.style.width = progress + '%';
             if (progress >= 100) {
                 clearInterval(interval);
-                // Pequeno atraso para o usuário ver a barra completa
-                setTimeout(() => {
-                    loaderContainer.style.display = 'none';
-                    enterButton.style.display = 'block';
-                }, 500);
+                loaderContainer.style.display = 'none';
+                enterButton.style.display = 'block';
             }
         }, 200);
 
         enterButton.addEventListener('click', () => {
             // Solicita permissões e ativa o modo AR ao clicar
             arViewer.style.display = 'block';
-            // A ativação do AR precisa de um gesto do usuário
             arViewer.activateAR();
             enterButton.style.display = 'none';
-        });
-
-        // Adiciona um listener para quando o usuário sair do modo AR
-        arViewer.addEventListener('ar-status', (event) => {
-            if (!event.detail.session) {
-                // Se a sessão AR terminar, mostra o botão de entrada novamente
-                enterButton.style.display = 'block';
-                arViewer.style.display = 'none';
-            }
         });
     </script>
 
